@@ -1,7 +1,9 @@
 timesfm>=1.0.0
+chronos-forecasting>=1.0.0
 yfinance>=0.2.54
 gradio>=5.0.0
 plotly>=5.22.0
 pandas>=2.0.0
 numpy>=1.26.0
 torch>=2.3.0
+fredapi>=0.5.0
