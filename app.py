@@ -1,14 +1,40 @@
-"""Gradio + Plotly UI for AI-powered stock price forecasting.
+"""
+app.py
+------
+Gradio + Plotly UI for AI-powered stock price forecasting.
+Reads from a local static dataset — no real-time API calls.
 
 Run:
     python app.py
 """
+
+import logging
+
 import gradio as gr
 import plotly.graph_objects as go
 import pandas as pd
 
-from src.data import fetch_stock_data
+from src.data import get_available_tickers, get_close_series
 from src.forecast import generate_forecast
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+
+# ── Ticker list (populated at startup from local CSV) ─────────────────────────
+
+def _get_tickers_safe() -> list[str]:
+    """Return available tickers; fall back to a hardcoded list if CSV not built yet."""
+    try:
+        return get_available_tickers()
+    except FileNotFoundError:
+        return [
+            "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN",
+            "META", "TSLA", "BRK-B", "JPM", "V",
+            "UNH", "XOM", "LLY", "JNJ", "MA",
+            "AVGO", "PG", "HD", "MRK", "COST",
+        ]
+
+TICKERS = _get_tickers_safe()
 
 
 # ── Visualization ─────────────────────────────────────────────────────────────
@@ -32,7 +58,7 @@ def build_figure(
         line=dict(color="black", width=1.5),
     ))
 
-    # 80% CI shaded band (drawn before median so median overlays it)
+    # 80% CI shaded band (add before median so median renders on top)
     fig.add_trace(go.Scatter(
         x=pd.concat([upper.index.to_series(), lower.index.to_series()[::-1]]),
         y=list(upper.values) + list(lower.values[::-1]),
@@ -55,7 +81,7 @@ def build_figure(
 
     fig.update_layout(
         title=dict(
-            text=f"{ticker} — Zero-Shot Forecast (TimesFM 2.5)",
+            text=f"{ticker} — Zero-Shot Forecast (TimesFM 1.0)",
             font=dict(size=18),
         ),
         xaxis_title="Date",
@@ -74,27 +100,27 @@ def build_figure(
 # ── Core handler ──────────────────────────────────────────────────────────────
 
 def run_forecast(ticker: str, horizon: int) -> tuple[go.Figure, str]:
-    """Gradio click handler. Returns (plotly figure, status string)."""
-    ticker = ticker.strip().upper()
+    """Gradio click handler. Loads local data → forecast → chart."""
     if not ticker:
-        return None, "⚠️ Please enter a ticker symbol."
+        return None, "⚠️ Please select a ticker."
 
     try:
-        historical = fetch_stock_data(ticker, period="2y")
-    except ValueError as e:
+        close = get_close_series(ticker)
+    except (FileNotFoundError, ValueError) as e:
         return None, f"❌ Data error: {e}"
 
     try:
-        median, lower, upper = generate_forecast(historical, horizon=int(horizon))
+        median, lower, upper = generate_forecast(close, horizon=int(horizon))
     except Exception as e:
         return None, f"❌ Forecast error: {e}"
 
-    # Show last 6 months of history for chart readability
-    display_history = historical.last("6ME")
+    # Show last 6 months of history for readability
+    display_history = close.last("6ME")
     fig = build_figure(ticker, display_history, median, lower, upper)
 
     status = (
-        f"✅ {ticker} | Last close: ${historical.iloc[-1]:.2f} | "
+        f"✅ {ticker} | "
+        f"Last close: ${close.iloc[-1]:.2f} ({close.index[-1].date()}) | "
         f"Horizon: {horizon} days | "
         f"Forecast range: ${lower.iloc[-1]:.2f} – ${upper.iloc[-1]:.2f}"
     )
@@ -107,17 +133,20 @@ with gr.Blocks(title="AI Stock Forecaster", theme=gr.themes.Soft()) as demo:
     gr.Markdown(
         """
         # 📈 AI Stock Price Forecaster
-        **Zero-shot forecasting powered by [TimesFM 2.5](https://huggingface.co/google/timesfm-2.5-200m-pytorch)**
-        (Google DeepMind · 200M params · No fine-tuning required)
+        **Zero-shot forecasting powered by [TimesFM 1.0](https://huggingface.co/google/timesfm-1.0-200m-pytorch)**
+        (Google DeepMind · 200M parameters · No fine-tuning required)
+
+        > Data sourced from a local static dataset (S&P 500 top 20 + FRED macro).
+        > Run `python scripts/build_dataset.py` to refresh.
         """
     )
 
     with gr.Row():
         with gr.Column(scale=1):
-            ticker_input = gr.Textbox(
-                label="Ticker Symbol",
-                value="AAPL",
-                placeholder="e.g. AAPL, MSFT, NVDA, TSLA",
+            ticker_dropdown = gr.Dropdown(
+                label="Select Ticker",
+                choices=TICKERS,
+                value=TICKERS[0] if TICKERS else "AAPL",
             )
             horizon_slider = gr.Slider(
                 label="Forecast Horizon (trading days)",
@@ -136,13 +165,13 @@ with gr.Blocks(title="AI Stock Forecaster", theme=gr.themes.Soft()) as demo:
 
     run_btn.click(
         fn=run_forecast,
-        inputs=[ticker_input, horizon_slider],
+        inputs=[ticker_dropdown, horizon_slider],
         outputs=[plot_output, status_output],
     )
 
     gr.Examples(
         examples=[["AAPL", 30], ["MSFT", 60], ["NVDA", 14], ["TSLA", 45]],
-        inputs=[ticker_input, horizon_slider],
+        inputs=[ticker_dropdown, horizon_slider],
         label="Quick Examples",
     )
 
