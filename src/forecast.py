@@ -222,3 +222,94 @@ def generate_ensemble_forecast(
         "chronos_median": pd.Series(c_median, index=future_dates, name="Chronos-2 Median"),
         "timesfm_median": pd.Series(t_median, index=future_dates, name="TimesFM Median"),
     }
+
+
+# ── Portfolio batch forecasting ───────────────────────────────────────────────
+
+def get_portfolio_forecasts_and_cov(
+    full_df: "pd.DataFrame",
+    selected_tickers: list[str],
+    horizon: int = 30,
+    chronos_weight: float = 0.5,
+    progress_callback=None,
+) -> tuple["pd.Series", "pd.DataFrame"]:
+    """
+    Run generate_ensemble_forecast for each ticker and compute the historical
+    covariance matrix over the past 252 trading days.
+
+    Args:
+        full_df:           The full cached CSV DataFrame (all tickers, all columns).
+        selected_tickers:  List of ticker symbols to include in the portfolio.
+        horizon:           Forecast horizon in trading days.
+        chronos_weight:    Chronos-2 weight in the ensemble (TimesFM = 1 - this).
+        progress_callback: Optional callable(fraction: float, desc: str) for UI progress.
+
+    Returns:
+        mu_vector:   pd.Series of expected returns, index = selected_tickers.
+                     Return = (final_ensemble_median - last_close) / last_close
+        cov_matrix:  pd.DataFrame of historical return covariance, shape (n, n).
+    """
+    mu_dict: dict[str, float] = {}
+    n = len(selected_tickers)
+
+    for i, ticker in enumerate(selected_tickers):
+        if progress_callback:
+            progress_callback(i / n, desc=f"Forecasting {ticker} ({i+1}/{n})…")
+
+        # Filter full dataset to this ticker
+        mask = full_df["Ticker"] == ticker
+        if not mask.any():
+            log.warning("Ticker %s not found in dataset — skipping.", ticker)
+            continue
+
+        ticker_df = (
+            full_df[mask]
+            .copy()
+            .set_index("Date")
+            .sort_index()
+            .drop(columns=["Ticker"], errors="ignore")
+            .dropna(subset=["Close"])
+        )
+
+        try:
+            result = generate_ensemble_forecast(ticker_df, horizon=horizon, chronos_weight=chronos_weight)
+        except Exception as e:
+            log.error("Forecast failed for %s: %s — assigning μ=0.", ticker, e)
+            mu_dict[ticker] = 0.0
+            continue
+
+        last_close   = ticker_df["Close"].iloc[-1]
+        final_median = result["ensemble_median"].iloc[-1]
+        mu_dict[ticker] = (final_median - last_close) / last_close
+
+        torch.cuda.empty_cache()
+
+    mu_vector = pd.Series(mu_dict, name="expected_return")
+
+    # ── Historical covariance matrix (last 252 trading days) ────────────────
+    present_tickers = [t for t in selected_tickers if t in full_df["Ticker"].values]
+    close_pivot = (
+        full_df[full_df["Ticker"].isin(present_tickers)]
+        .pivot_table(index="Date", columns="Ticker", values="Close")
+        .sort_index()
+        .tail(252)       # last ~1 year of trading days
+        .dropna(axis=1, thresh=126)  # drop tickers with <50% data in window
+    )
+
+    # Annualised daily return covariance (252 trading days/year)
+    daily_returns = close_pivot.pct_change().dropna()
+    cov_matrix = daily_returns.cov() * 252
+
+    # Restrict to tickers that survived the NaN filter
+    surviving = [t for t in mu_vector.index if t in cov_matrix.columns]
+    mu_vector  = mu_vector[surviving]
+    cov_matrix = cov_matrix.loc[surviving, surviving]
+
+    if progress_callback:
+        progress_callback(1.0, desc="All forecasts complete.")
+
+    log.info(
+        "Portfolio forecasts done: n=%d tickers, μ range=[%.4f, %.4f]",
+        len(mu_vector), mu_vector.min(), mu_vector.max(),
+    )
+    return mu_vector, cov_matrix
