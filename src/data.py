@@ -22,18 +22,28 @@ import pandas as pd
 
 log = logging.getLogger(__name__)
 
-# Canonical path to the static dataset (relative to project root)
-_DATA_FILE = Path(__file__).parent.parent / "data" / "sp500_macro_dataset.csv"
+# Canonical path to the static master dataset (relative to project root)
+# v3.0: sp500_macro_master.csv (100 tickers, 11 covariates)
+# v2.0: sp500_macro_dataset.csv (30 tickers,  7 covariates) — kept as fallback
+_DATA_FILE = Path(__file__).parent.parent / "data" / "sp500_macro_master.csv"
+_DATA_FILE_LEGACY = Path(__file__).parent.parent / "data" / "sp500_macro_dataset.csv"
 
-# All macro covariate columns produced by build_dataset.py v2.0
+# All macro covariate columns produced by build_dataset.py v3.0
+# FRED primary (7) + Kaggle macro extension (4)
 COVARIATE_COLS = [
-    "DGS10",        # 10-Year Treasury rate
-    "VIXCLS",       # VIX volatility index
-    "UNRATE",       # Unemployment rate
-    "CPIAUCSL",     # CPI (Consumer Price Index)
-    "BAMLH0A0HYM2", # HY credit spread (market stress)
-    "T10Y2Y",       # Yield curve spread (recession signal)
-    "UMCSENT",      # Consumer sentiment
+    # ── FRED (authoritative, daily) ──────────────────────────────────────────
+    "DGS10",        # 10-Year Treasury rate          (risk-free benchmark)
+    "VIXCLS",       # VIX volatility index           (short-term market fear)
+    "UNRATE",       # Unemployment rate              (macro health, monthly)
+    "CPIAUCSL",     # CPI (Consumer Price Index)     (inflation driver, monthly)
+    "BAMLH0A0HYM2", # ICE BofA HY spread             (systemic credit risk)
+    "T10Y2Y",       # 10Y-2Y Treasury spread         (yield curve / recession)
+    "UMCSENT",      # U. Michigan consumer sentiment (demand-side leading, monthly)
+    # ── Kaggle macro extension (eswaranmuthu — daily, 2018+) ─────────────────
+    "FEDFUNDS_RATE",    # Fed Funds / SOFR policy rate
+    "M2_MONEY_SUPPLY",  # M2 money supply (USD billions)
+    "SOFR",             # Secured Overnight Financing Rate
+    "INFLATION_RATE",   # YoY CPI inflation rate (%)
 ]
 
 # Cached DataFrame — loaded once per process
@@ -41,17 +51,32 @@ _cache: pd.DataFrame | None = None
 
 
 def _load_cache() -> pd.DataFrame:
-    """Load the full dataset into memory (once). Raises FileNotFoundError if missing."""
+    """Load the full dataset into memory (once).
+
+    Prefers sp500_macro_master.csv (v3.0, 100 tickers, 11 covariates).
+    Falls back to sp500_macro_dataset.csv (v2.0, 30 tickers, 7 covariates).
+    Raises FileNotFoundError if neither exists.
+    """
     global _cache
     if _cache is None:
-        if not _DATA_FILE.exists():
-            raise FileNotFoundError(
-                f"Dataset not found at {_DATA_FILE}.\n"
-                "Run:  python scripts/build_dataset.py\n"
-                "to build the local dataset first."
+        if _DATA_FILE.exists():
+            path = _DATA_FILE
+        elif _DATA_FILE_LEGACY.exists():
+            path = _DATA_FILE_LEGACY
+            log.warning(
+                "Master dataset not found — falling back to legacy %s.\n"
+                "Rebuild: python scripts/build_dataset.py",
+                _DATA_FILE_LEGACY.name,
             )
-        log.info("Loading dataset from %s…", _DATA_FILE)
-        _cache = pd.read_csv(_DATA_FILE, parse_dates=["Date"])
+        else:
+            raise FileNotFoundError(
+                f"No dataset found.\n"
+                f"  Expected (v3.0): {_DATA_FILE}\n"
+                f"  Expected (v2.0): {_DATA_FILE_LEGACY}\n"
+                "Run:  python scripts/build_dataset.py"
+            )
+        log.info("Loading dataset from %s…", path.name)
+        _cache = pd.read_csv(path, parse_dates=["Date"])
         log.info(
             "Dataset loaded: %d rows | %d tickers | columns: %s",
             len(_cache),

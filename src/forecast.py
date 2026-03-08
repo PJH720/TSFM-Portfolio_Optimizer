@@ -100,12 +100,17 @@ def get_chronos_forecast(
     # Build input dict — always has target
     input_dict: dict = {"target": close}
 
-    # Add past covariates — use all available macro columns from v2.0 dataset
-    # Priority: VIXCLS/BAMLH0A0HYM2 (market stress), DGS10/T10Y2Y (rates),
-    #           CPIAUCSL/UNRATE/UMCSENT (macro fundamentals)
+    # Add past covariates — use all available macro columns from v3.0 master dataset
+    # Priority order: market stress → rates → macro fundamentals → monetary
     _COVARIATE_PRIORITY = (
-        "DGS10", "VIXCLS", "UNRATE",
-        "CPIAUCSL", "BAMLH0A0HYM2", "T10Y2Y", "UMCSENT",
+        # market stress / risk
+        "VIXCLS", "BAMLH0A0HYM2",
+        # interest rates
+        "DGS10", "T10Y2Y", "FEDFUNDS_RATE", "SOFR",
+        # macro fundamentals
+        "UNRATE", "CPIAUCSL", "INFLATION_RATE", "UMCSENT",
+        # money supply
+        "M2_MONEY_SUPPLY",
     )
     covariates = {}
     for col in _COVARIATE_PRIORITY:
