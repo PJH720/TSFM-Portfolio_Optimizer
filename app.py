@@ -210,7 +210,7 @@ def run_portfolio_opt(tickers, horizon, chronos_weight, risk_aversion, progress=
 
 # ── Gradio Blocks UI ──────────────────────────────────────────────────────────
 
-with gr.Blocks(title="AI Portfolio System", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="AI Portfolio System") as demo:
     gr.Markdown("""
     # 📈 AI-Powered Portfolio System
     **Dual-Model Ensemble Forecasting (Chronos-2 + TimesFM) · Markowitz Mean-Variance Optimization**
@@ -264,4 +264,4 @@ with gr.Blocks(title="AI Portfolio System", theme=gr.themes.Soft()) as demo:
             )
 
 if __name__ == "__main__":
-    demo.launch(share=False)
+    demo.launch(share=False, theme=gr.themes.Soft())
