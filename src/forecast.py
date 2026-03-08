@@ -1,4 +1,4 @@
-"""Zero-shot time-series forecasting using Google TimesFM 2.5."""
+"""Zero-shot time-series forecasting using Google TimesFM 1.0 (200M, PyTorch)."""
 from __future__ import annotations
 import numpy as np
 import pandas as pd
@@ -8,20 +8,24 @@ _model: timesfm.TimesFm | None = None
 
 
 def _load_model() -> timesfm.TimesFm:
-    """Lazy-load TimesFM 2.5 (200M). Cached after first call."""
+    """Lazy-load TimesFM 1.0 200M (PyTorch). Cached after first call.
+
+    Uses google/timesfm-1.0-200m-pytorch — compatible with timesfm v1.x on PyPI.
+    Upgrade to timesfm-2.5-200m-pytorch once timesfm>=2.0 lands on PyPI.
+    """
     global _model
     if _model is None:
         hf_config = timesfm.TimesFmHparams(
-            backend="gpu",
+            backend="gpu",            # falls back to cpu if no CUDA
             per_core_batch_size=32,
-            horizon_len=256,
+            horizon_len=128,          # 1.0-200m max horizon
             num_layers=20,
             model_dims=1280,
-            use_positional_embedding=False,
-            context_len=2048,
+            use_positional_embedding=True,   # required for 1.0 model
+            context_len=512,          # 1.0-200m was trained with 512-token context
         )
         checkpoint = timesfm.TimesFmCheckpoint(
-            huggingface_repo_id="google/timesfm-2.5-200m-pytorch"
+            huggingface_repo_id="google/timesfm-1.0-200m-pytorch"
         )
         _model = timesfm.TimesFm(hparams=hf_config, checkpoint=checkpoint)
     return _model
