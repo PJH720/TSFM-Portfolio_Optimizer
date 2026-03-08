@@ -100,19 +100,24 @@ def get_chronos_forecast(
     # Build input dict — always has target
     input_dict: dict = {"target": close}
 
-    # Add past covariates if macro columns exist and are not all-NaN
+    # Add past covariates — use all available macro columns from v2.0 dataset
+    # Priority: VIXCLS/BAMLH0A0HYM2 (market stress), DGS10/T10Y2Y (rates),
+    #           CPIAUCSL/UNRATE/UMCSENT (macro fundamentals)
+    _COVARIATE_PRIORITY = (
+        "DGS10", "VIXCLS", "UNRATE",
+        "CPIAUCSL", "BAMLH0A0HYM2", "T10Y2Y", "UMCSENT",
+    )
     covariates = {}
-    for col in ("DGS10", "VIXCLS"):
+    for col in _COVARIATE_PRIORITY:
         if col in df.columns and not df[col].isna().all():
-            # Forward-fill then back-fill to match target length, convert to float64
             vals = df[col].ffill().bfill().values.astype(np.float64)
             covariates[col] = vals
 
     if covariates:
         input_dict["past_covariates"] = covariates
-        log.info("Chronos-2: using past covariates %s", list(covariates.keys()))
+        log.info("Chronos-2: using %d past covariates: %s", len(covariates), list(covariates.keys()))
     else:
-        log.info("Chronos-2: univariate mode (no macro covariates available)")
+        log.info("Chronos-2: univariate mode (no macro covariates in dataset — rebuild with v2.0)")
 
     # Run prediction
     results = pipeline.predict(
