@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 # Startup — dynamic ticker & sector loading from master CSV
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _load_tickers_and_sectors() -> tuple[list[str], dict[str, str]]:
     """Load tickers and sector map from master CSV.
 
@@ -43,7 +44,7 @@ def _load_tickers_and_sectors() -> tuple[list[str], dict[str, str]]:
     Falls back gracefully if CSV not yet built, with an informative message.
     """
     try:
-        tickers    = get_available_tickers()   # reads sp500_macro_master.csv
+        tickers = get_available_tickers()  # reads sp500_macro_master.csv
         sector_map = get_sector_map()
         log.info("Loaded %d tickers from master CSV.", len(tickers))
         return tickers, sector_map
@@ -66,7 +67,7 @@ def _default_portfolio(n: int = 5) -> list[str]:
     for t in TICKERS:
         sec = SECTOR_MAP.get(t, "Unknown")
         if sec not in by_sector:
-            by_sector[sec] = t           # first ticker per sector
+            by_sector[sec] = t  # first ticker per sector
     picks = list(by_sector.values())[:n]
     # pad with weight-ordered tickers if we got fewer than n sectors
     for t in TICKERS:
@@ -84,6 +85,7 @@ log.info("Default portfolio: %s", DEFAULT_PORTFOLIO)
 # ─────────────────────────────────────────────────────────────────────────────
 # Tab 1 — Single-Asset Forecast
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def run_single_forecast(
     ticker: str,
@@ -105,12 +107,12 @@ def run_single_forecast(
         return go.Figure(), f"❌ Forecast error: {e}"
 
     timesfm_weight = 1.0 - float(chronos_weight)
-    dates_fwd      = result["dates"]
-    q10            = result["ensemble_q10"]
-    q90            = result["ensemble_q90"]
+    dates_fwd = result["dates"]
+    q10 = result["ensemble_q10"]
+    q90 = result["ensemble_q90"]
 
     sector = SECTOR_MAP.get(ticker, "")
-    title  = f"{ticker} — Dual-Model Ensemble Forecast"
+    title = f"{ticker} — Dual-Model Ensemble Forecast"
     if sector:
         title += f"  [{sector}]"
 
@@ -118,44 +120,62 @@ def run_single_forecast(
 
     # 1 · Historical Close — last 6 months, solid black
     hist = df["Close"].last("6ME")
-    fig.add_trace(go.Scatter(
-        x=hist.index, y=hist.values,
-        mode="lines", name="Historical Close",
-        line=dict(color="black", width=2),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=hist.index,
+            y=hist.values,
+            mode="lines",
+            name="Historical Close",
+            line=dict(color="black", width=2),
+        )
+    )
 
     # 2 · 80% CI band — red shaded fill
-    fig.add_trace(go.Scatter(
-        x=pd.concat([dates_fwd.to_series(), dates_fwd.to_series()[::-1]]),
-        y=list(q90.values) + list(q10.values[::-1]),
-        fill="toself",
-        fillcolor="rgba(220,50,50,0.12)",
-        line=dict(color="rgba(0,0,0,0)"),
-        hoverinfo="skip",
-        name="80% Prediction Interval",
-        showlegend=True,
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=pd.concat([dates_fwd.to_series(), dates_fwd.to_series()[::-1]]),
+            y=list(q90.values) + list(q10.values[::-1]),
+            fill="toself",
+            fillcolor="rgba(220,50,50,0.12)",
+            line=dict(color="rgba(0,0,0,0)"),
+            hoverinfo="skip",
+            name="80% Prediction Interval",
+            showlegend=True,
+        )
+    )
 
     # 3 · Ensemble Median — crimson dashed
-    fig.add_trace(go.Scatter(
-        x=dates_fwd, y=result["ensemble_median"].values,
-        mode="lines", name=f"Ensemble (C={float(chronos_weight):.0%})",
-        line=dict(color="crimson", width=2.5, dash="dash"),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=dates_fwd,
+            y=result["ensemble_median"].values,
+            mode="lines",
+            name=f"Ensemble (C={float(chronos_weight):.0%})",
+            line=dict(color="crimson", width=2.5, dash="dash"),
+        )
+    )
 
     # 4 · Chronos-2 Median — blue dotted
-    fig.add_trace(go.Scatter(
-        x=dates_fwd, y=result["chronos_median"].values,
-        mode="lines", name="Chronos-2",
-        line=dict(color="royalblue", width=1.5, dash="dot"),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=dates_fwd,
+            y=result["chronos_median"].values,
+            mode="lines",
+            name="Chronos-2",
+            line=dict(color="royalblue", width=1.5, dash="dot"),
+        )
+    )
 
     # 5 · TimesFM Median — green dotted
-    fig.add_trace(go.Scatter(
-        x=dates_fwd, y=result["timesfm_median"].values,
-        mode="lines", name="TimesFM 1.0",
-        line=dict(color="seagreen", width=1.5, dash="dot"),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=dates_fwd,
+            y=result["timesfm_median"].values,
+            mode="lines",
+            name="TimesFM 1.0",
+            line=dict(color="seagreen", width=1.5, dash="dot"),
+        )
+    )
 
     fig.update_layout(
         title=dict(text=title, font=dict(size=17)),
@@ -170,10 +190,10 @@ def run_single_forecast(
         height=540,
     )
 
-    last_close  = df["Close"].iloc[-1]
-    q10_final   = q10.iloc[-1]
-    q90_final   = q90.iloc[-1]
-    ens_final   = result["ensemble_median"].iloc[-1]
+    last_close = df["Close"].iloc[-1]
+    q10_final = q10.iloc[-1]
+    q90_final = q90.iloc[-1]
+    ens_final = result["ensemble_median"].iloc[-1]
     exp_ret_pct = (ens_final - last_close) / last_close * 100
     status = (
         f"✅  {ticker}  |  Last close: ${last_close:.2f}  |  "
@@ -187,6 +207,7 @@ def run_single_forecast(
 # ─────────────────────────────────────────────────────────────────────────────
 # Tab 2 — Portfolio Optimization
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def run_portfolio_opt(
     tickers,
@@ -202,7 +223,10 @@ def run_portfolio_opt(
     try:
         full_df = _load_cache()
     except FileNotFoundError as e:
-        return go.Figure(), f"❌ Dataset missing — run: python scripts/build_dataset.py\n{e}"
+        return (
+            go.Figure(),
+            f"❌ Dataset missing — run: python scripts/build_dataset.py\n{e}",
+        )
 
     # ── TSFM batch forecasting ─────────────────────────────────────────────
     progress(0.0, desc="Starting batch TSFM forecasting…")
@@ -240,30 +264,32 @@ def run_portfolio_opt(
     progress(0.95, desc="Building chart…")
 
     # ── Pie chart ──────────────────────────────────────────────────────────
-    labels   = list(weights.keys())
-    values   = [weights[t] for t in labels]
-    sectors  = [SECTOR_MAP.get(t, "Unknown") for t in labels]
-    mu_pct   = [f"{mu_vector.get(t, 0)*100:.2f}%" for t in labels]
-    palette  = px.colors.qualitative.Set3
+    labels = list(weights.keys())
+    values = [weights[t] for t in labels]
+    sectors = [SECTOR_MAP.get(t, "Unknown") for t in labels]
+    mu_pct = [f"{mu_vector.get(t, 0) * 100:.2f}%" for t in labels]
+    palette = px.colors.qualitative.Set3
 
-    fig = go.Figure(go.Pie(
-        labels=labels,
-        values=values,
-        customdata=list(zip(mu_pct, sectors)),
-        hovertemplate=(
-            "<b>%{label}</b><br>"
-            "Weight: %{percent}<br>"
-            "Expected Return: %{customdata[0]}<br>"
-            "Sector: %{customdata[1]}"
-            "<extra></extra>"
-        ),
-        textinfo="label+percent",
-        hole=0.38,
-        marker=dict(
-            colors=palette[: len(labels)],
-            line=dict(color="white", width=2),
-        ),
-    ))
+    fig = go.Figure(
+        go.Pie(
+            labels=labels,
+            values=values,
+            customdata=list(zip(mu_pct, sectors)),
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "Weight: %{percent}<br>"
+                "Expected Return: %{customdata[0]}<br>"
+                "Sector: %{customdata[1]}"
+                "<extra></extra>"
+            ),
+            textinfo="label+percent",
+            hole=0.38,
+            marker=dict(
+                colors=palette[: len(labels)],
+                line=dict(color="white", width=2),
+            ),
+        )
+    )
 
     constraint_tag = "  [Sector ≤30%]" if enable_sector_constraints else ""
     fig.update_layout(
@@ -277,23 +303,26 @@ def run_portfolio_opt(
         legend=dict(orientation="v", yanchor="middle", y=0.5),
         paper_bgcolor="white",
         height=500,
-        annotations=[dict(
-            text=f"E[r]={diag['expected_return']:.1f}%",
-            x=0.5, y=0.5,
-            font_size=16,
-            showarrow=False,
-        )],
+        annotations=[
+            dict(
+                text=f"E[r]={diag['expected_return']:.1f}%",
+                x=0.5,
+                y=0.5,
+                font_size=16,
+                showarrow=False,
+            )
+        ],
     )
 
     # ── Status string ──────────────────────────────────────────────────────
     top3 = sorted(weights.items(), key=lambda x: -x[1])[:3]
-    top3_str = "  |  ".join(f"{t}: {w*100:.1f}%" for t, w in top3)
+    top3_str = "  |  ".join(f"{t}: {w * 100:.1f}%" for t, w in top3)
 
     sector_lines = ""
     if enable_sector_constraints and diag["sector_weights"]:
         sector_lines = "\nSector allocations: " + "  |  ".join(
-            f"{s}: {v*100:.0f}%" for s, v in
-            sorted(diag["sector_weights"].items(), key=lambda x: -x[1])
+            f"{s}: {v * 100:.0f}%"
+            for s, v in sorted(diag["sector_weights"].items(), key=lambda x: -x[1])
         )
 
     status = (
@@ -316,11 +345,11 @@ def run_portfolio_opt(
 _NO_DATA_MSG = (
     "⚠️  No dataset found.  "
     "Run `python scripts/build_dataset.py` to build `data/sp500_macro_master.csv`."
-    if not TICKERS else ""
+    if not TICKERS
+    else ""
 )
 
 with gr.Blocks(title="AI Portfolio System — TSFM Edition") as demo:
-
     gr.Markdown("""
 # 📈 AI-Powered Portfolio System  ·  TSFM Edition
 **Dual-Model Ensemble (Chronos-2 + TimesFM 1.0)  ·  Markowitz Mean-Variance  ·  Sector Constraints**
@@ -332,29 +361,34 @@ with gr.Blocks(title="AI Portfolio System — TSFM Edition") as demo:
         gr.Markdown(f"### {_NO_DATA_MSG}")
 
     with gr.Tabs():
-
         # ── Tab 1: Single Asset Forecast ─────────────────────────────────────
         with gr.Tab("🔍 Single Asset Forecast"):
             with gr.Row():
                 with gr.Column(scale=1):
                     t1_ticker = gr.Dropdown(
-                        label=f"Ticker  ({len(TICKERS)} available)",
+                        label="Ticker",
                         choices=TICKERS,
                         value=TICKERS[0] if TICKERS else None,
                         filterable=True,
                     )
                     t1_horizon = gr.Slider(
                         label="Forecast Horizon (trading days)",
-                        minimum=5, maximum=90, step=5, value=30,
+                        minimum=5,
+                        maximum=90,
+                        step=5,
+                        value=30,
                     )
                     t1_cw = gr.Slider(
                         label="Chronos-2 Weight  (TimesFM = 1 − this)",
-                        minimum=0.0, maximum=1.0, step=0.05, value=0.5,
+                        minimum=0.0,
+                        maximum=1.0,
+                        step=0.05,
+                        value=0.5,
                     )
                     t1_btn = gr.Button("🔮 Generate Forecast", variant="primary")
 
                 with gr.Column(scale=3):
-                    t1_plot   = gr.Plot(label="Forecast Chart")
+                    t1_plot = gr.Plot(label="Forecast Chart")
                     t1_status = gr.Textbox(label="Status", lines=2, interactive=False)
 
             t1_btn.click(
@@ -365,11 +399,11 @@ with gr.Blocks(title="AI Portfolio System — TSFM Edition") as demo:
 
             gr.Examples(
                 examples=[
-                    ["AAPL",  30, 0.5],
-                    ["MSFT",  60, 0.3],
-                    ["NVDA",  14, 0.7],
-                    ["JPM",   30, 0.5],
-                    ["XOM",   45, 0.4],
+                    ["AAPL", 30, 0.5],
+                    ["MSFT", 60, 0.3],
+                    ["NVDA", 14, 0.7],
+                    ["JPM", 30, 0.5],
+                    ["XOM", 45, 0.4],
                 ],
                 inputs=[t1_ticker, t1_horizon, t1_cw],
                 label="Quick Examples",
@@ -380,7 +414,7 @@ with gr.Blocks(title="AI Portfolio System — TSFM Edition") as demo:
             with gr.Row():
                 with gr.Column(scale=1):
                     t2_tickers = gr.Dropdown(
-                        label=f"Tickers  (min 2, from {len(TICKERS)} available)",
+                        label="Portfolio Tickers  (select 2 or more)",
                         choices=TICKERS,
                         value=DEFAULT_PORTFOLIO,
                         multiselect=True,
@@ -388,15 +422,24 @@ with gr.Blocks(title="AI Portfolio System — TSFM Edition") as demo:
                     )
                     t2_horizon = gr.Slider(
                         label="Forecast Horizon (trading days)",
-                        minimum=5, maximum=90, step=5, value=30,
+                        minimum=5,
+                        maximum=90,
+                        step=5,
+                        value=30,
                     )
                     t2_cw = gr.Slider(
                         label="Chronos-2 Weight",
-                        minimum=0.0, maximum=1.0, step=0.05, value=0.5,
+                        minimum=0.0,
+                        maximum=1.0,
+                        step=0.05,
+                        value=0.5,
                     )
                     t2_ra = gr.Slider(
                         label="Risk Aversion γ  (higher = more conservative)",
-                        minimum=0.1, maximum=10.0, step=0.1, value=1.0,
+                        minimum=0.1,
+                        maximum=10.0,
+                        step=0.1,
+                        value=1.0,
                     )
                     t2_sector = gr.Checkbox(
                         label="Enable Sector Constraints  (each GICS sector ≤ 30%)",
@@ -405,7 +448,7 @@ with gr.Blocks(title="AI Portfolio System — TSFM Edition") as demo:
                     t2_btn = gr.Button("⚙️ Optimise Portfolio", variant="primary")
 
                 with gr.Column(scale=3):
-                    t2_plot   = gr.Plot(label="Optimal Portfolio Weights")
+                    t2_plot = gr.Plot(label="Optimal Portfolio Weights")
                     t2_status = gr.Textbox(label="Status", lines=5, interactive=False)
 
             t2_btn.click(
