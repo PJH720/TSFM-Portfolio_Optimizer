@@ -6,7 +6,7 @@ Produces:  data/sp500_macro_master.csv
 Pipeline overview
 -----------------
   Phase 0 · Environment & Kaggle auth
-  Phase 1 · Automated Kaggle dataset downloads (idempotent)
+  Phase 1 · Automated Kaggle dataset downloads (idempotent)f
   Phase 2 · Dynamic ticker quality assessment & universe selection
   Phase 3 · Hybrid stock price loading  (Kaggle CSV → yfinance fallback)
   Phase 4 · Sector / Industry metadata join
@@ -62,11 +62,11 @@ OUTPUT_CSV    = DATA_DIR / "sp500_macro_master.csv"
 _KG_STOCKS  = "andrewmvd/sp-500-stocks"
 _KG_MACRO   = "eswaranmuthu/u-s-economic-vital-signs-25-years-of-macro-data"
 
-# ── FRED series ───────────────────────────────────────────────────────────────
+# ── FRED series ───────────────────────────────────────────────────────────────   
 
 FRED_SERIES: dict[str, str] = {
     "DGS10":        "10-Year Treasury Constant Maturity Rate",
-    "VIXCLS":       "CBOE Volatility Index (VIX)",
+    "VIXCLS":       "CBOE Volatility Index (VIX)", 
     "UNRATE":       "Unemployment Rate",
     "CPIAUCSL":     "Consumer Price Index (All Urban Consumers)",
     "BAMLH0A0HYM2": "ICE BofA US High Yield Spread (market stress)",

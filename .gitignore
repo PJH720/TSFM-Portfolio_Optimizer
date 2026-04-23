@@ -4,6 +4,27 @@
 /.cursor/
 /.References/
 
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.csr
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+credentials.json
+service-account*.json
+secrets.*
+*.kubeconfig
+kaggle.json
+
 # Python cache and bytecode
 __pycache__/
 *.py[cod]
@@ -35,6 +56,15 @@ htmlcov/
 
 # Jupyter
 .ipynb_checkpoints/
+/*.ipynb
+
+# Local datasets and generated data artifacts
+/data/raw/
+/data/*.csv
+
+# Notebook render artifacts
+/notebooks/*.png
+/notebooks/*.html
 
 # IDE and OS artifacts
 .DS_Store
