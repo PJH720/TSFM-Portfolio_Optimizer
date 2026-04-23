@@ -10,18 +10,89 @@ TimesFM operates univariate on Close prices only.
 
 from __future__ import annotations
 
+import inspect
 import logging
+import os
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import torch
+from dotenv import load_dotenv
 
 log = logging.getLogger(__name__)
+load_dotenv()
 
 # ── Lazy-cached model singletons ─────────────────────────────────────────────
 
 _chronos_pipeline = None
 _timesfm_model = None
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_model_env() -> dict[str, Any]:
+    token = os.getenv("HF_TOKEN", "").strip()
+    require_token = _env_bool("MODEL_REQUIRE_TOKEN", True)
+    local_only = _env_bool("MODEL_LOCAL_ONLY", False)
+    offline = _env_bool("HF_HUB_OFFLINE", False)
+    cache_dir = os.getenv("HF_HOME", "").strip() or None
+
+    if require_token and not token:
+        raise RuntimeError(
+            "HF_TOKEN is required. Set HF_TOKEN in .env or environment, "
+            "or set MODEL_REQUIRE_TOKEN=0 to disable this requirement."
+        )
+
+    return {
+        "token": token or None,
+        "local_only": local_only or offline,
+        "cache_dir": cache_dir,
+    }
+
+
+def _call_chronos_pretrained(
+    model_id: str,
+    device: str,
+    token: str | None,
+    local_only: bool,
+    cache_dir: str | None,
+):
+    from chronos import Chronos2Pipeline
+
+    kwargs: dict[str, Any] = {
+        "device_map": device if device != "mps" else "cpu",
+        "local_files_only": local_only,
+    }
+    if cache_dir:
+        kwargs["cache_dir"] = cache_dir
+    if token:
+        kwargs["token"] = token
+
+    try:
+        kwargs["dtype"] = torch.float32
+        return Chronos2Pipeline.from_pretrained(model_id, **kwargs)
+    except TypeError:
+        kwargs.pop("dtype", None)
+        kwargs["torch_dtype"] = torch.float32
+        return Chronos2Pipeline.from_pretrained(model_id, **kwargs)
+
+
+def _build_timesfm_checkpoint(timesfm_module, token: str | None, local_only: bool):
+    signature = inspect.signature(timesfm_module.TimesFmCheckpoint)
+    kwargs: dict[str, Any] = {
+        "huggingface_repo_id": "google/timesfm-1.0-200m-pytorch",
+    }
+    if token and "token" in signature.parameters:
+        kwargs["token"] = token
+    if local_only and "local_files_only" in signature.parameters:
+        kwargs["local_files_only"] = True
+    return timesfm_module.TimesFmCheckpoint(**kwargs)
 
 
 def _get_device() -> str:
@@ -37,15 +108,41 @@ def _load_chronos():
     """Load Chronos-2 pipeline (amazon/chronos-2). Cached after first call."""
     global _chronos_pipeline
     if _chronos_pipeline is None:
-        from chronos import Chronos2Pipeline
-
+        opts = _resolve_model_env()
         device = _get_device()
-        log.info("Loading Chronos-2 pipeline on %s…", device)
-        _chronos_pipeline = Chronos2Pipeline.from_pretrained(
-            "amazon/chronos-2",
-            device_map=device if device != "mps" else "cpu",  # Chronos uses device_map; MPS not supported
-            torch_dtype=torch.float32,
+        log.info(
+            "Loading Chronos-2 pipeline on %s (local_only=%s, cache=%s)…",
+            device,
+            opts["local_only"],
+            opts["cache_dir"] or "default",
         )
+        try:
+            _chronos_pipeline = _call_chronos_pretrained(
+                model_id="amazon/chronos-2",
+                device=device,
+                token=opts["token"],
+                local_only=opts["local_only"],
+                cache_dir=opts["cache_dir"],
+            )
+        except Exception as exc:
+            message = str(exc)
+            if "401" in message or "403" in message:
+                raise RuntimeError(
+                    "Chronos-2 authentication failed. Check HF_TOKEN validity and "
+                    "model access permissions."
+                ) from exc
+            if "timed out" in message.lower() or "ReadTimeout" in message:
+                raise RuntimeError(
+                    "Chronos-2 load timed out while contacting Hugging Face Hub. "
+                    "Try preloading models with scripts/preload_models.py or increase "
+                    "HF_HUB_ETAG_TIMEOUT/HF_HUB_DOWNLOAD_TIMEOUT."
+                ) from exc
+            if "local_files_only" in message or "not found in cache" in message.lower():
+                raise RuntimeError(
+                    "Chronos-2 not found in local cache while local-only mode is active. "
+                    "Run scripts/preload_models.py first or disable MODEL_LOCAL_ONLY."
+                ) from exc
+            raise RuntimeError(f"Chronos-2 load failed: {exc}") from exc
         torch.cuda.empty_cache()
         log.info("Chronos-2 loaded.")
     return _chronos_pipeline
@@ -57,6 +154,7 @@ def _load_timesfm():
     if _timesfm_model is None:
         import timesfm
 
+        opts = _resolve_model_env()
         log.info("Loading TimesFM 1.0-200m-pytorch…")
         hparams = timesfm.TimesFmHparams(
             backend="gpu",
@@ -67,10 +165,32 @@ def _load_timesfm():
             use_positional_embedding=True,   # Required for 1.0 model
             context_len=512,
         )
-        checkpoint = timesfm.TimesFmCheckpoint(
-            huggingface_repo_id="google/timesfm-1.0-200m-pytorch"
-        )
-        _timesfm_model = timesfm.TimesFm(hparams=hparams, checkpoint=checkpoint)
+        try:
+            checkpoint = _build_timesfm_checkpoint(
+                timesfm_module=timesfm,
+                token=opts["token"],
+                local_only=opts["local_only"],
+            )
+            _timesfm_model = timesfm.TimesFm(hparams=hparams, checkpoint=checkpoint)
+        except Exception as exc:
+            message = str(exc)
+            if "401" in message or "403" in message:
+                raise RuntimeError(
+                    "TimesFM authentication failed. Check HF_TOKEN validity and "
+                    "model access permissions."
+                ) from exc
+            if "timed out" in message.lower() or "ReadTimeout" in message:
+                raise RuntimeError(
+                    "TimesFM load timed out while contacting Hugging Face Hub. "
+                    "Try preloading models with scripts/preload_models.py or increase "
+                    "HF_HUB_ETAG_TIMEOUT/HF_HUB_DOWNLOAD_TIMEOUT."
+                ) from exc
+            if "local_files_only" in message or "not found in cache" in message.lower():
+                raise RuntimeError(
+                    "TimesFM not found in local cache while local-only mode is active. "
+                    "Run scripts/preload_models.py first or disable MODEL_LOCAL_ONLY."
+                ) from exc
+            raise RuntimeError(f"TimesFM load failed: {exc}") from exc
         torch.cuda.empty_cache()
         log.info("TimesFM 1.0 loaded.")
     return _timesfm_model

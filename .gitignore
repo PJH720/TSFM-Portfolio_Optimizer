@@ -4,6 +4,27 @@
 /.cursor/
 /.References/
 
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.csr
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+credentials.json
+service-account*.json
+secrets.*
+*.kubeconfig
+kaggle.json
+
 # Python cache and bytecode
 __pycache__/
 *.py[cod]

@@ -103,15 +103,27 @@ def optimize_portfolio(
 
     # ── Sector constraints ────────────────────────────────────────────────────
     sector_constraint_count = 0
+    effective_cap = max_sector_weight  # may be relaxed for feasibility
     if sector_map:
         sector_indices = _build_sector_index_map(tickers, sector_map)
+        num_sectors = len(sector_indices)
+
+        # Guarantee feasibility: sum of all caps must be ≥ budget (1.0).
+        # With cap=30% and only 3 sectors: 3×0.30=0.90 < 1 → infeasible → silent
+        # equal-weight fallback.  Floor the cap at 1/num_sectors.
+        effective_cap = max(max_sector_weight, 1.0 / num_sectors + 1e-6)
+        if effective_cap > max_sector_weight + 1e-6:
+            log.warning(
+                "Sector cap relaxed %.0f%% → %.0f%% (only %d sectors — "
+                "fixed cap would make QP infeasible).",
+                max_sector_weight * 100, effective_cap * 100, num_sectors,
+            )
 
         for sector, indices in sector_indices.items():
-            idx  = np.array(indices)
-            cap  = max_sector_weight
+            idx = np.array(indices)
 
-            # If all tickers in the portfolio belong to one sector we'd create an
-            # infeasible problem — skip the constraint in that degenerate case.
+            # Degenerate: all tickers in one sector — constraint already covered
+            # by single-name caps; no separate sector constraint needed.
             if len(indices) == n:
                 log.warning(
                     "All %d tickers are in sector '%s' — skipping sector cap "
@@ -120,17 +132,17 @@ def optimize_portfolio(
                 )
                 continue
 
-            constraints.append(cp.sum(w[idx]) <= cap)
+            constraints.append(cp.sum(w[idx]) <= effective_cap)
             sector_constraint_count += 1
             log.debug(
                 "Sector constraint: Σw[%s] ≤ %.0f%%  (%d assets: %s)",
-                sector, cap * 100, len(indices),
+                sector, effective_cap * 100, len(indices),
                 [tickers[i] for i in indices],
             )
 
         log.info(
             "Sector constraints active: %d sectors capped at %.0f%%",
-            sector_constraint_count, max_sector_weight * 100,
+            sector_constraint_count, effective_cap * 100,
         )
     else:
         log.info("No sector_map provided — running unconstrained (long-only + budget + name cap).")
@@ -178,6 +190,24 @@ def optimize_portfolio(
     # Renormalise to exactly 1.0
     total = sum(weights.values())
     weights = {t: v / total for t, v in weights.items()}
+
+    # Guard: thresholding + renormalization can push a sector that was exactly at
+    # the cap slightly above it.  Clip and re-normalise once.
+    if sector_map:
+        surviving = list(weights.keys())
+        sec_idx = _build_sector_index_map(surviving, sector_map)
+        violated = False
+        for sec_keys_idx in sec_idx.values():
+            sec_keys = [surviving[i] for i in sec_keys_idx]
+            s_total = sum(weights[t] for t in sec_keys)
+            if s_total > effective_cap + 1e-6:
+                violated = True
+                scale = effective_cap / s_total
+                for t in sec_keys:
+                    weights[t] *= scale
+        if violated:
+            total = sum(weights.values())
+            weights = {t: v / total for t, v in weights.items()}
 
     # ── Diagnostic report ─────────────────────────────────────────────────────
     log.info(

@@ -6,7 +6,7 @@ Produces:  data/sp500_macro_master.csv
 Pipeline overview
 -----------------
   Phase 0 · Environment & Kaggle auth
-  Phase 1 · Automated Kaggle dataset downloads (idempotent)
+  Phase 1 · Automated Kaggle dataset downloads (idempotent)f
   Phase 2 · Dynamic ticker quality assessment & universe selection
   Phase 3 · Hybrid stock price loading  (Kaggle CSV → yfinance fallback)
   Phase 4 · Sector / Industry metadata join
@@ -62,11 +62,11 @@ OUTPUT_CSV    = DATA_DIR / "sp500_macro_master.csv"
 _KG_STOCKS  = "andrewmvd/sp-500-stocks"
 _KG_MACRO   = "eswaranmuthu/u-s-economic-vital-signs-25-years-of-macro-data"
 
-# ── FRED series ───────────────────────────────────────────────────────────────
+# ── FRED series ───────────────────────────────────────────────────────────────   
 
 FRED_SERIES: dict[str, str] = {
     "DGS10":        "10-Year Treasury Constant Maturity Rate",
-    "VIXCLS":       "CBOE Volatility Index (VIX)",
+    "VIXCLS":       "CBOE Volatility Index (VIX)", 
     "UNRATE":       "Unemployment Rate",
     "CPIAUCSL":     "Consumer Price Index (All Urban Consumers)",
     "BAMLH0A0HYM2": "ICE BofA US High Yield Spread (market stress)",
@@ -98,6 +98,8 @@ _NULL_THRESH   = 0.05   # >5% null → yfinance fallback
 _PERIOD_MAP    = {
     "1y": 365, "2y": 730, "3y": 1095, "5y": 1825, "7y": 2555, "10y": 3650
 }
+
+DEFAULT_EXTRA_TICKERS: list[str] = ["LRCX", "ASML", "MMM", "O", "GLD"]
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -193,7 +195,47 @@ def download_kaggle_datasets(api: "KaggleApi", force: bool = False) -> None:
 # Phase 2 — Dynamic ticker quality assessment & universe selection
 # ═════════════════════════════════════════════════════════════════════════════
 
-def assess_and_select_tickers(top_n: int, period: str) -> tuple[pd.DataFrame, list[str], list[str]]:
+def _fetch_ticker_stubs(tickers: list[str]) -> pd.DataFrame:
+    """Build metadata rows for tickers absent from sp500_companies.csv (e.g. ASML, GLD).
+
+    Fetches sector/industry via yfinance .info.  Falls back to "Commodities" for
+    known gold/commodity ETFs, "Unknown" otherwise.
+    """
+    _COMMODITY_ETFS = {"GLD", "SLV", "IAU", "GDX", "USO", "DBO"}
+    rows = []
+    for t in tickers:
+        sector = industry = ""
+        try:
+            info = yf.Ticker(t).info
+            sector   = info.get("sector",   "") or ""
+            industry = info.get("industry", "") or ""
+        except Exception:
+            pass
+        if not sector:
+            sector = "Commodities" if t.upper() in _COMMODITY_ETFS else "Unknown"
+        rows.append({
+            "Symbol":    t.upper(),
+            "Sector":    sector,
+            "Industry":  industry,
+            "Weight":    0.0,
+            "Marketcap": float("nan"),
+            "null_rate": 1.0,
+            "valid":     0,
+            "is_good":   False,
+        })
+        log.info("  Stub metadata for %s: Sector=%s", t, sector)
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows).set_index("Symbol")
+    df.index.name = "Symbol"
+    return df
+
+
+def assess_and_select_tickers(
+    top_n: int,
+    period: str,
+    extra_tickers: list[str] | None = None,
+) -> tuple[pd.DataFrame, list[str], list[str]]:
     """Dynamically filter & rank tickers.
 
     Strategy:
@@ -257,6 +299,21 @@ def assess_and_select_tickers(top_n: int, period: str) -> tuple[pd.DataFrame, li
     ranked = universe.sort_values("Weight", ascending=False).head(top_n).copy()
     ranked.index.name = "Symbol"
 
+    # ── Force-include extra tickers (not already in top_n) ────────────────────
+    if extra_tickers:
+        already_in = set(ranked.index.str.upper())
+        missing = [t for t in extra_tickers if t.upper() not in already_in]
+        if missing:
+            log.info("  Force-including %d extra ticker(s): %s", len(missing), missing)
+            in_csv     = [t for t in missing if t.upper() in universe.index]
+            not_in_csv = [t for t in missing if t.upper() not in universe.index]
+            extra_rows = universe.loc[in_csv].copy() if in_csv else pd.DataFrame()
+            extra_rows["is_good"] = False   # always refresh via yfinance
+            stubs = _fetch_ticker_stubs(not_in_csv) if not_in_csv else pd.DataFrame()
+            extra_combined = pd.concat([extra_rows, stubs])
+            ranked = pd.concat([ranked, extra_combined])
+            ranked = ranked[~ranked.index.duplicated(keep="first")]
+
     kaggle_ok  = ranked[ranked["is_good"]].index.tolist()
     yf_needed  = ranked[~ranked["is_good"]].index.tolist()
 
@@ -308,18 +365,35 @@ def _load_from_kaggle(tickers: list[str], start: pd.Timestamp, end: pd.Timestamp
     return sub
 
 
-def _load_from_yfinance(tickers: list[str], period: str) -> pd.DataFrame:
+def _load_from_yfinance(
+    tickers: list[str],
+    period: str | None = None,
+    start: pd.Timestamp | None = None,
+    end: pd.Timestamp | None = None,
+) -> pd.DataFrame:
     if not tickers:
         return pd.DataFrame(columns=["Date", "Ticker", "Close", "Volume"])
 
-    log.info("  yfinance download: %d tickers (period=%s)…", len(tickers), period)
-    raw = yf.download(
-        tickers if len(tickers) > 1 else tickers[0],
-        period=period,
-        auto_adjust=True,
-        progress=True,
-        group_by="ticker" if len(tickers) > 1 else None,
-    )
+    if start is not None:
+        label = f"{start.date()} → {(end or pd.Timestamp.now()).date()}"
+        log.info("  yfinance download: %d tickers (%s)…", len(tickers), label)
+        raw = yf.download(
+            tickers if len(tickers) > 1 else tickers[0],
+            start=start,
+            end=end,
+            auto_adjust=True,
+            progress=True,
+            group_by="ticker" if len(tickers) > 1 else None,
+        )
+    else:
+        log.info("  yfinance download: %d tickers (period=%s)…", len(tickers), period)
+        raw = yf.download(
+            tickers if len(tickers) > 1 else tickers[0],
+            period=period,
+            auto_adjust=True,
+            progress=True,
+            group_by="ticker" if len(tickers) > 1 else None,
+        )
 
     frames: list[pd.DataFrame] = []
     if len(tickers) == 1:
@@ -380,13 +454,13 @@ def load_stock_prices(
 
     # C. yfinance recency supplement for Kaggle-good tickers (post Kaggle cutoff)
     gap_days = (now - kaggle_end).days
-    if kaggle_ok and gap_days > 10:
-        supplement_period = f"{max(gap_days // 30 + 1, 2)}mo"
+    if kaggle_ok and gap_days > 0:
+        supplement_start = kaggle_end + pd.Timedelta(days=1)
         log.info(
-            "  Supplementing %d Kaggle tickers with recent yfinance data (%s)…",
-            len(kaggle_ok), supplement_period,
+            "  Supplementing %d Kaggle tickers with recent yfinance data (%s → today)…",
+            len(kaggle_ok), supplement_start.date(),
         )
-        recent_df = _load_from_yfinance(kaggle_ok, supplement_period)
+        recent_df = _load_from_yfinance(kaggle_ok, start=supplement_start, end=now + pd.Timedelta(days=1))
         recent_df = recent_df[recent_df["Date"] > kaggle_end]
         if not recent_df.empty:
             log.info("  Recency supplement: +%d rows (post %s)", len(recent_df), kaggle_end.date())
@@ -741,6 +815,9 @@ def parse_args() -> argparse.Namespace:
                    help="Skip FRED API calls (macro columns = NaN). Faster for tests.")
     p.add_argument("--force-download", action="store_true",
                    help="Re-download Kaggle datasets even if cached.")
+    p.add_argument("--extra-tickers", type=str, default="",
+                   help="Comma-separated tickers to force-include regardless of S&P weight "
+                        "(e.g. LRCX,ASML,GLD). Fetches metadata via yfinance if not in Kaggle CSV.")
     return p.parse_args()
 
 
@@ -763,7 +840,9 @@ def main() -> None:
     download_kaggle_datasets(api, force=args.force_download)
 
     # Phase 2 — dynamic ticker selection
-    universe, kaggle_ok, yf_needed = assess_and_select_tickers(args.top_n, args.period)
+    extra = list({t.strip().upper() for t in args.extra_tickers.split(",") if t.strip()}
+                 | {t.upper() for t in DEFAULT_EXTRA_TICKERS})
+    universe, kaggle_ok, yf_needed = assess_and_select_tickers(args.top_n, args.period, extra)
 
     # Phase 3 — hybrid price loading
     stocks = load_stock_prices(kaggle_ok, yf_needed, args.period)
