@@ -2,9 +2,14 @@
 /CLAUDE.md
 /AGENTS.md
 /PLAN.md
-/.claude/
-/.cursor/
 /.References/
+
+# Cursor IDE and Claude Code (entire trees; includes .claude/commands)
+.claude/
+.cursor/
+
+# Python bytecode (any directory)
+__pycache__/
 
 # Environment variables and secrets
 .env
@@ -28,7 +33,6 @@ secrets.*
 kaggle.json
 
 # Python cache and bytecode
-__pycache__/
 *.py[cod]
 *$py.class
 
