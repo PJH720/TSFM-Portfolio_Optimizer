@@ -1,6 +1,7 @@
 # Project-private docs and agent artifacts
 /CLAUDE.md
 /AGENTS.md
+/PLAN.md
 /.claude/
 /.cursor/
 /.References/
