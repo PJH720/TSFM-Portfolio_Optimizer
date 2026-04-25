@@ -75,3 +75,12 @@ htmlcov/
 # IDE and OS artifacts
 .DS_Store
 Thumbs.db
+
+# Docker and container files
+Dockerfile
+Dockerfile.*
+.dockerignore
+docker-compose.yml
+docker-compose.yaml
+compose.yml
+compose.yaml
