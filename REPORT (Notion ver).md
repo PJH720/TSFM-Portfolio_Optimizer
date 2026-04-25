@@ -226,7 +226,8 @@ quant_cfg = BitsAndBytesConfig(
 - **Tab 1 — Single Asset Forecast:** Plotly 차트에 역사적 가격 + 앙상블 예측 + 80% CI 밴드 + 개별 모델 예측선
 - **Tab 2 — Portfolio Optimization:** 파이 차트 + E[r]/σ/Sharpe 진단 텍스트 + 섹터 배분 요약
 
-> *(Gradio 실행 화면 캡처를 여기에 첨부하세요 — `python app.py` 실행 후 브라우저 스크린샷)*
+![Gradio Demo](docs/%5BHugging%20Face%5D%20Amazon%20Chronos-2%20%26%20TimesFM%202026%2003%2009.gif)
+> *(Gradio 실행 화면 캡처 첨부 — `python app.py` 실행 후 브라우저 스크린샷)*
 
 ### C. 프로젝트 구조
 

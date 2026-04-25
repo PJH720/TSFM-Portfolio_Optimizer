@@ -2,9 +2,34 @@
 
 [English (README.md)](README.md) | **한국어** | [日本語 (README.ja.md)](README.ja.md)
 
+<p align="center">
+  <img src="docs/AI%20Portfolio%20Manager.jpg" alt="AI Portfolio Manager 배너" width="880" />
+</p>
+
+<p align="center">
+  <img src="docs/Chronos-TimesFM.jpg" alt="Chronos TimesFM 로고" width="360" />
+</p>
+
+<p align="center">
+  <a href="REPORT.md"><img src="https://img.shields.io/badge/Full%20Report-REPORT.md-6f42c1?style=for-the-badge&logo=readme&logoColor=white" alt="전체 리포트"></a>
+  <a href="#데모-미리보기"><img src="https://img.shields.io/badge/Live%20Demo-Gradio-ff4b4b?style=for-the-badge&logo=gradio&logoColor=white" alt="Gradio 데모"></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/Models-TimesFM%20%7C%20Chronos--2-1f6feb?style=flat-square" alt="모델 TimesFM Chronos-2">
+  <img src="https://img.shields.io/badge/UI-Gradio%20%2B%20Plotly-f97316?style=flat-square" alt="UI Gradio Plotly">
+  <img src="https://img.shields.io/badge/Optimization-Markowitz%20QP-0ea5e9?style=flat-square" alt="최적화 Markowitz QP">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial-22c55e?style=flat-square" alt="라이선스"></a>
+</p>
+
 시계열 파운데이션 모델(TSFM)인 **TimesFM 1.0**과 **Amazon Chronos-2**로 기대수익률을 제로샷 예측하고, **Markowitz형 2차계획법(`cvxpy`)**으로 섹터·종목 상한이 있는 롱온리 포트폴리오를 구성합니다. **Gradio** 2탭 UI에서 단일 자산 예측과 다자산 최적화를 제공합니다.
 
 평가 기준, 모델 카드, 노트북 지표, 갭 분석 등 **전체 서술**은 정문용이 아닌 **[REPORT.md](REPORT.md)**에 있습니다.
+
+## 데모 미리보기
+
+![Gradio 데모](docs/%5BHugging%20Face%5D%20Amazon%20Chronos-2%20%26%20TimesFM%202026%2003%2009.gif)
 
 ## 주요 기능
 

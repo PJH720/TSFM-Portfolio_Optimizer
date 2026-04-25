@@ -2,9 +2,34 @@
 
 **English** | [한국어 (README.ko.md)](README.ko.md) | [日本語 (README.ja.md)](README.ja.md)
 
+<p align="center">
+  <img src="docs/AI%20Portfolio%20Manager.jpg" alt="AI Portfolio Manager banner" width="880" />
+</p>
+
+<p align="center">
+  <img src="docs/Chronos-TimesFM.jpg" alt="Chronos TimesFM logo" width="360" />
+</p>
+
+<p align="center">
+  <a href="REPORT.md"><img src="https://img.shields.io/badge/Full%20Report-REPORT.md-6f42c1?style=for-the-badge&logo=readme&logoColor=white" alt="Full report"></a>
+  <a href="#demo-preview"><img src="https://img.shields.io/badge/Live%20Demo-Gradio-ff4b4b?style=for-the-badge&logo=gradio&logoColor=white" alt="Gradio demo"></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/Models-TimesFM%20%7C%20Chronos--2-1f6feb?style=flat-square" alt="Models TimesFM Chronos-2">
+  <img src="https://img.shields.io/badge/UI-Gradio%20%2B%20Plotly-f97316?style=flat-square" alt="UI Gradio and Plotly">
+  <img src="https://img.shields.io/badge/Optimization-Markowitz%20QP-0ea5e9?style=flat-square" alt="Markowitz QP">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial-22c55e?style=flat-square" alt="License"></a>
+</p>
+
 Zero-shot time-series foundation models (TimesFM 1.0, Amazon Chronos-2) forecast expected returns; a Markowitz-style QP (`cvxpy`) builds long-only portfolios with sector and name caps. A two-tab **Gradio** app exposes single-asset forecasts and multi-asset optimization.
 
 For the full narrative—evaluation rubric, model cards, notebook metrics, and gap analysis—see **[REPORT.md](REPORT.md)** (long-form; not duplicated here).
+
+## Demo Preview
+
+![Gradio Demo](docs/%5BHugging%20Face%5D%20Amazon%20Chronos-2%20%26%20TimesFM%202026%2003%2009.gif)
 
 ## Features
 
