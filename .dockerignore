@@ -1,0 +1,16 @@
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.ipynb_checkpoints
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+agent-transcripts/
+mcps/
+data/
+notebooks/
+docs/
