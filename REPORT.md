@@ -7,6 +7,10 @@ Optimization
 Conda
 Environment
 
+## 🎬 Video Reference
+- [TSFM-Portfolio_Optimizer v3.0 Persentation(KR)](https://youtu.be/YYVAWdpDRnc)
+- [TSFM-Portfolio_Optimizer v3.0 Demo](https://youtu.be/KuksrlwgD5I) 
+
 ## 📌 Current Status — v3.0
 
 > **All core features implemented.** Master dataset built (100 tickers, 11 macro covariates).
