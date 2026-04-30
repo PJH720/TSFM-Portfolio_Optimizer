@@ -125,6 +125,7 @@ REPORT.md              # Full project report (long)
 This project is licensed under the **[PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)** (SPDX: `PolyForm-Noncommercial-1.0.0`). It is **source-available** but **not** an OSI-approved “open source” license: noncommercial and certain organizational uses are permitted on the terms of the license; **commercial** exploitation (e.g. selling a product or service built on this code) is **not** covered—you need **separate written permission** from the copyright holder.
 
 - **Copyright** © 2026 Jaehyun Park (see `Required Notice` in `LICENSE`). Redistributing the software requires passing along this license (or its URL) and the required notice lines.
+- **Plain-language intent:** Using this code as a **personal investing aid/advice workflow** is generally intended to be OK for individual investors. But turning it into a commercial app/service/product for **resale, paid distribution, or other profit-making redistribution** is not allowed without separate written permission.
 - **Third-party stack:** PyTorch, Hugging Face models, Python packages, and datasets remain under **their** licenses; you must comply with those upstream terms in addition to this repository’s `LICENSE`.
 - If you are unsure whether your use is noncommercial, or you want a commercial license, **contact the copyright holder** (see `LICENSE`).
 

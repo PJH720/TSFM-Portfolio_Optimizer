@@ -217,6 +217,7 @@ def _fetch_ticker_stubs(tickers: list[str]) -> pd.DataFrame:
     known gold/commodity ETFs, "Unknown" otherwise.
     """
     _COMMODITY_ETFS = {"GLD", "SLV", "IAU", "GDX", "USO", "DBO"}
+    _BOND_ETFS = {"TLT", "IEF", "SHY", "BND", "AGG"}
     rows = []
     for t in tickers:
         sector = industry = ""
@@ -227,7 +228,13 @@ def _fetch_ticker_stubs(tickers: list[str]) -> pd.DataFrame:
         except Exception:
             pass
         if not sector:
-            sector = "Commodities" if t.upper() in _COMMODITY_ETFS else "Unknown"
+            t_upper = t.upper()
+            if t_upper in _COMMODITY_ETFS:
+                sector = "Commodities"
+            elif t_upper in _BOND_ETFS:
+                sector = "Fixed Income"
+            else:
+                sector = "Unknown"
         rows.append({
             "Symbol":    t.upper(),
             "Sector":    sector,
