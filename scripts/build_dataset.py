@@ -99,7 +99,22 @@ _PERIOD_MAP    = {
     "1y": 365, "2y": 730, "3y": 1095, "5y": 1825, "7y": 2555, "10y": 3650
 }
 
-DEFAULT_EXTRA_TICKERS: list[str] = ["LRCX", "ASML", "MMM", "O", "GLD"]
+DEFAULT_EXTRA_TICKERS: list[str] = [
+    "LRCX",
+    "ASML",
+    "MMM",
+    "O",
+    "GLD",
+    "TLT",
+    "INTC",
+    "SNDK",
+    "SOXX",
+    "SLV",
+    "XLE",
+    "QQQM",
+    "QQQ",
+    "SOXL",
+]
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
