@@ -114,6 +114,9 @@ DEFAULT_EXTRA_TICKERS: list[str] = [
     "QQQM",
     "QQQ",
     "SOXL",
+    "VOO",
+    "XLV",
+    "BND",
 ]
 
 # ── Logging ───────────────────────────────────────────────────────────────────
