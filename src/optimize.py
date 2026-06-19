@@ -50,7 +50,7 @@ def optimize_portfolio(
     weight_threshold: float = 1e-3,
     sector_map: dict[str, str] | None = None,
     max_sector_weight: float = _DEFAULT_MAX_SECTOR_WEIGHT,
-    max_single_weight: float = _DEFAULT_MAX_SINGLE_WEIGHT,
+    max_single_weight: float | None = _DEFAULT_MAX_SINGLE_WEIGHT,
 ) -> dict[str, float]:
     """
     Solve the Markowitz Mean-Variance optimization with optional sector constraints.
@@ -98,8 +98,9 @@ def optimize_portfolio(
     constraints: list = [
         cp.sum(w) == 1,          # fully invested
         w >= 0,                  # long-only
-        w <= max_single_weight,  # single-name concentration cap
     ]
+    if max_single_weight is not None:
+        constraints.append(w <= max_single_weight)  # single-name concentration cap
 
     # ── Sector constraints ────────────────────────────────────────────────────
     sector_constraint_count = 0
@@ -111,12 +112,28 @@ def optimize_portfolio(
         # Guarantee feasibility: sum of all caps must be ≥ budget (1.0).
         # With cap=30% and only 3 sectors: 3×0.30=0.90 < 1 → infeasible → silent
         # equal-weight fallback.  Floor the cap at 1/num_sectors.
+        # Guarantee feasibility — the sum of sector caps must be ≥ budget (1.0).
+        # (1) With cap=30% and few sectors, k×0.30 may be < 1 → floor at 1/k.
         effective_cap = max(max_sector_weight, 1.0 / num_sectors + 1e-6)
+        # (2) The single-name cap can also block the budget: a sector with n_s
+        #     names holds at most min(sector_cap, n_s · name_cap).  If the sum of
+        #     those is < 1 the QP is infeasible and the solver would silently fall
+        #     back to equal-weight that VIOLATES the cap.  Relax the sector cap
+        #     upward (minimally) until the budget Σwᵢ = 1 is reachable.
+        if max_single_weight is not None:
+            def _achievable_budget(cap: float) -> float:
+                return sum(
+                    min(cap, len(idx) * max_single_weight)
+                    for idx in sector_indices.values()
+                )
+            while effective_cap < 1.0 and _achievable_budget(effective_cap) < 1.0 - 1e-9:
+                effective_cap = min(1.0, effective_cap + 0.01)
         if effective_cap > max_sector_weight + 1e-6:
             log.warning(
-                "Sector cap relaxed %.0f%% → %.0f%% (only %d sectors — "
-                "fixed cap would make QP infeasible).",
-                max_sector_weight * 100, effective_cap * 100, num_sectors,
+                "Sector cap relaxed %.0f%% → %.0f%% to keep the QP feasible "
+                "(few sectors and/or the %.0f%% single-name cap on thin sectors).",
+                max_sector_weight * 100, effective_cap * 100,
+                (max_single_weight or 0.0) * 100,
             )
 
         for sector, indices in sector_indices.items():
