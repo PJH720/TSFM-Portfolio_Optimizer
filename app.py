@@ -245,7 +245,11 @@ def run_portfolio_opt(
     # ── Markowitz optimization (with optional sector constraints) ──────────
     progress(0.85, desc="Running Markowitz optimizer…")
 
+    # ON  → 30% GICS sector cap + 25% single-name cap.
+    # OFF → fully unconstrained (long-only + budget only): drop BOTH caps so the
+    #       toggle has a visible effect even on the diverse default portfolio.
     smap = SECTOR_MAP if enable_sector_constraints else None
+    name_cap = 0.25 if enable_sector_constraints else None
     try:
         weights = optimize_portfolio(
             mu_vector,
@@ -253,7 +257,7 @@ def run_portfolio_opt(
             risk_aversion=float(risk_aversion),
             sector_map=smap,
             max_sector_weight=0.30,
-            max_single_weight=0.25,
+            max_single_weight=name_cap,
         )
     except Exception as e:
         log.exception("Optimisation failed")
@@ -324,6 +328,12 @@ def run_portfolio_opt(
             f"{s}: {v * 100:.0f}%"
             for s, v in sorted(diag["sector_weights"].items(), key=lambda x: -x[1])
         )
+        max_sec = max(diag["sector_weights"].values())
+        if max_sec > 0.30 + 1e-3:
+            sector_lines += (
+                f"\n⚠️ Sector cap auto-relaxed to ~{max_sec * 100:.0f}% — a strict 30% cap "
+                f"was infeasible for this selection under the 25% single-name cap."
+            )
 
     status = (
         f"✅  Portfolio optimised  |  {len(weights)}/{len(tickers)} assets allocated\n"
